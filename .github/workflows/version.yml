@@ -85,7 +85,7 @@ jobs:
       run:
         shell: bash
     outputs:
-      VALID_TAG: ${{ steps.validate_tag.outputs.GIT_REF_TAG }}
+      SHARE_TAG: ${{ steps.validate_tag.outputs.GIT_REF_TAG }}
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
@@ -144,7 +144,7 @@ jobs:
       id: validate_tag
       run: |
         tag_name=$(git describe --tags --exact-match HEAD 2>/dev/null || true)
-        echo -n "$tag_name" >> $VALID_TAG
+        echo -n "$tag_name" >> $SHARE_TAG
 
     - name: Details on failure
       if: ${{ failure() }}
@@ -156,7 +156,7 @@ jobs:
     name: "Testing"
     runs-on: ubuntu-latest
     env:
-      VALID_TAG: ${{ needs.allow.outputs.VALID_TAG }}
+      VALID_TAG: ${{ needs.allow.outputs.SHARE_TAG }}
     outputs:
       SHARE_TAG: ${{ env.VALID_TAG }}
     steps:
