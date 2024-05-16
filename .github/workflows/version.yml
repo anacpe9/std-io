@@ -144,7 +144,7 @@ jobs:
       id: validate_tag
       run: |
         tag_name=$(git describe --tags --exact-match HEAD 2>/dev/null || true)
-        echo -n "SHARE_TAG=$tag_name" >> $env:GITHUB_OUTPUT
+        echo "SHARE_TAG=$tag_name" >> $GITHUB_OUTPUT
 
     - name: Details on failure
       if: ${{ failure() }}
@@ -194,7 +194,7 @@ jobs:
     - name: Cache tag_name for share to other jobs
       id: validate_tag
       run: |
-        echo -n "SHARE_TAG=$tag_name" >> $env:GITHUB_OUTPUT
+        echo "SHARE_TAG=$tag_name" >> $GITHUB_OUTPUT
 
   release:
     needs: [test]
