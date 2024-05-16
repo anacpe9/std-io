@@ -1,0 +1,4 @@
+github.com/anacpe9/sync-pool v0.0.0-20240516165414-30e7750562a5 h1:hrC850rxf1NQDZp2B20gbmwWLsH/1vO5oy4z4CTFN1A=
+github.com/anacpe9/sync-pool v0.0.0-20240516165414-30e7750562a5/go.mod h1:x3j4nedftMp0oWcNLI3tOzgAWSBkbMmhExyFQegzVu8=
+github.com/dsnet/golib/memfile v1.0.0 h1:J9pUspY2bDCbF9o+YGwcf3uG6MdyITfh/Fk3/CaEiFs=
+github.com/dsnet/golib/memfile v1.0.0/go.mod h1:tXGNW9q3RwvWt1VV2qrRKlSSz0npnh12yftCSCy2T64=

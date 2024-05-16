@@ -1,0 +1,219 @@
+name: Build and deploy to the staging environment
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - '[0-9]+.[0-9]+.[0-9]+*'
+      # - '**'
+      # - '^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)((\+|\-)[0-9a-z\.]+)*'
+      # https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions#onpushbranchestagsbranches-ignoretags-ignore
+
+env:
+  REGEX_SEMVER: "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)((\\+|\\-)[0-9a-z\\.]+)*$"
+  # REGEX_BRANCH: "(release|staging)-(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+
+jobs:
+  name:
+    name: Allow running pipeline on valid folders / files name
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: The folders and filenames pattern
+      run: |
+        echo $VALID_NAME
+
+    - name: Validate folders / files name
+      run: |
+        curr_commit=$(git rev-parse HEAD)
+        all_files=$(git show --pretty="" --name-only $curr_commit | grep -E '\.(go)$')
+        for full_path in $all_files; do
+          if [[ ! $full_path =~ $VALID_NAME ]]; then
+            echo "[INVALID] $full_path"
+            echo "error: folders and filenames must be kebab-case only!"
+            exit 1
+          fi
+
+          echo "[VALID] $full_path"
+        done
+
+  commit:
+    name: Github ref
+    runs-on: ubuntu-latest
+    steps:
+    - name: github.event.head_commit.message
+      run: echo "${{ github.event.head_commit.message }}"
+
+    - name: github.ref
+      run: echo "${{ github.ref }}"
+
+    - name: github.ref_type
+      run: echo "${{ github.ref_type }}"
+
+    - name: github.ref_name
+      run: echo "${{ github.ref_name }}"
+
+    - name: github.head_ref
+      run: echo "${{ github.head_ref }}"
+
+    - name: github.event.base_ref
+      run: echo "${{ github.event.base_ref }}"
+
+    - name: github.event.ref
+      run: echo "${{ github.event.ref }}"
+
+    - name: github.event_name
+      run: echo "${{ github.event_name }}"
+
+    - name: github.event_path
+      run: echo "${{ github.event_path }}"
+
+  allow:
+    # # Check if the commit has a tag and is on a main branch
+    # # and commit message does not contain 'skip ci' words
+    # if: ${{ !contains(github.event.head_commit.message, 'skip ci') && github.ref_type == 'tag' && startsWith(github.ref, 'refs/heads/main') }}
+    if: ${{ !contains(github.event.head_commit.message, 'skip ci') && github.ref_name == 'main' && startsWith(github.event.head_commit.message, 'Release ') }}
+    name: Allow running pipeline on the current commit has a tag
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+    outputs:
+      VALID_TAG: ${{ steps.validate_tag.outputs.GIT_REF_TAG }}
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 1
+        fetch-tags: true
+
+    # - name: Check if the commit has a tag and is on a main branch
+    #   if: ${{ github.ref_type != 'tag' || !startsWith(github.ref, 'refs/heads/main') }}
+    #   run: |
+    #     echo "The current commit has no tag or is not on a main branch."
+    #     exit 1
+
+    - name: Try to get the tag name associated with the current commit
+      run: |
+        tag_name=$(git describe --tags --exact-match HEAD 2>/dev/null || true)
+        echo "tag_name: $tag_name"
+
+    - name: Check if the tag name is empty (indicating no tag found)
+      run: |
+        tag_name=$(git describe --tags --exact-match HEAD 2>/dev/null || true)
+        if [[ -z "$tag_name" ]]; then
+          echo "Error: No tag found for the current commit."
+          echo "tag_name: $tag_name"
+          echo "git log : $(git log --oneline -n 10)"
+          echo "git tag : $(git tag)"
+          exit 1
+        fi
+
+    - name: Validate the tag format
+      run: |
+        tag_name=$(git describe --tags --exact-match HEAD 2>/dev/null || true)
+        if ! [[ "$tag_name" =~ $REGEX_SEMVER ]]; then
+          echo "Error: Invalid tag format for '$tag_name'. Only lowercase semver tags are allowed."
+          exit 1
+        fi
+
+    # - name: Validate the tag against the branch
+    #   run: |
+    #     associated_branch=$(git rev-parse --abbrev-ref HEAD)
+    #     if ! [[ "$associated_branch" =~ $REGEX_BRANCH ]]; then
+    #       echo "Error: Tag '$tag_name' not allowed on branch '$associated_branch'."
+    #       exit 1
+    #     fi
+    #
+    # - name: Validate the tag version against the branch version
+    #   run: |
+    #     branch_version=$(echo "$associated_branch" | grep -oE "\d+\.\d+$")
+    #
+    #     if ! [[ "$tag_name" == "$branch_version".* ]]; then
+    #       echo "Error: Tag '$tag_name' is not associated with branch version '$branch_version'."
+    #       exit 1
+    #     fi
+
+    - name: Cache tag_name for share to other jobs
+      id: validate_tag
+      run: |
+        tag_name=$(git describe --tags --exact-match HEAD 2>/dev/null || true)
+        echo -n "$tag_name" >> $GIT_REF_TAG
+
+    - name: Details on failure
+      if: ${{ failure() }}
+      run: |
+        echo ${{ steps.validate_tag.outputs.errors }}
+
+  test:
+    needs: [name, allow]
+    name: "Testing"
+    runs-on: ubuntu-latest
+    env:
+      VALID_TAG: ${{ needs.allow.outputs.VALID_TAG }}
+    outputs:
+      VALID_TAG: ${{ env.VALID_TAG }}
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.22'
+
+    - name: Test
+      run: make test
+
+    - name: Test Coverage
+      run: make test-coverage
+
+    - name: Test Coverage - HTML
+      run: make test-coverage-html-ci
+
+    - name: install nikolaydubina/go-cover-treemap
+      run: go install github.com/nikolaydubina/go-cover-treemap@latest
+
+    - name: Test Coverage - Treemap
+      run: make test-coverage-treemap-ci
+
+    - name: Store code coverage file
+      uses: actions/upload-artifact@v4
+      with:
+        name: coverage-${{ github.sha }}
+        path: coverage/*
+
+    - name: Cache tag_name for share to other jobs
+      id: validate_tag
+      run: |
+        echo -n "$tag_name" >> $GIT_REF_TAG
+
+  release:
+    needs: [test]
+    name: "Release"
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_TOKEN: ${{ github.token }}
+      VALID_TAG: ${{ needs.test.outputs.VALID_TAG }}
+    outputs:
+      VALID_TAG: ${{ env.VALID_TAG }}
+    steps:
+    - uses: actions/download-artifact@v4
+      with:
+        name: coverage-${{ github.sha }}
+
+    - name: release
+      uses: actions/create-release@v1
+      with:
+        tag_name: ${{ env.VALID_TAG }}
+        release_name: Release ${{ env.VALID_TAG }}
+        body: |
+          Changes in this Release
+          - First Public
+        draft: false
+        prerelease: false
