@@ -158,7 +158,7 @@ jobs:
     env:
       VALID_TAG: ${{ needs.allow.outputs.VALID_TAG }}
     outputs:
-      VALID_TAG: ${{ env.VALID_TAG }}
+      SHARE_TAG: ${{ env.VALID_TAG }}
     steps:
     - uses: actions/checkout@v4
 
@@ -191,7 +191,7 @@ jobs:
     - name: Cache tag_name for share to other jobs
       id: validate_tag
       run: |
-        echo -n "$tag_name" >> $VALID_TAG
+        echo -n "$tag_name" >> $SHARE_TAG
 
   release:
     needs: [test]
@@ -199,9 +199,9 @@ jobs:
     runs-on: ubuntu-latest
     env:
       GITHUB_TOKEN: ${{ github.token }}
-      VALID_TAG: ${{ needs.test.outputs.VALID_TAG }}
+      VALID_TAG: ${{ needs.test.outputs.SHARE_TAG }}
     outputs:
-      VALID_TAG: ${{ env.VALID_TAG }}
+      SHARE_TAG: ${{ env.VALID_TAG }}
     steps:
     - uses: actions/download-artifact@v4
       with:
